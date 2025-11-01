@@ -155,7 +155,7 @@ public:
     /// Get out-file name
     static std::string BuildOutFileName(const std::string& graphName, const std::string& algName, const int seedsize,
         const std::string& probDist, const float probEdge, const double saturateRatio = -1.0, const double eps = -1.0,
-        const double delta = -1.0)
+        const double delta = -1.0, const int commNum = -1)
     {
         std::ostringstream oss;
         oss << std::fixed << std::setprecision(3);
@@ -188,6 +188,13 @@ public:
             oss.str(""); oss.clear();
             oss << delta;
             outFileName += "_dlt" + oss.str();
+        }
+
+        if (commNum != -1)
+        {
+            oss.str(""); oss.clear();
+            oss << commNum;
+            outFileName += "_P" + oss.str();
         }
 
         return outFileName;

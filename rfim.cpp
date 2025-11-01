@@ -30,11 +30,12 @@ int main(int argc, char* argv[])
     init_random_seed();
 
     const std::string infilename = Arg._dir + "/" + Arg._graphname;
-    const std::string commFilenames = Arg._dir + "/" + Arg._graphname + ".comm";
+    const std::string commFilenames = Arg._commFile == "" ? Arg._dir + "/" + Arg._graphname + ".comm" : Arg._dir + "/" + Arg._commFile + ".comm";
+    const std::string commFormat = Arg._commFile == "" ? Arg._dir + "/" + Arg._graphname : Arg._dir + "/" + Arg._commFile;
     if (Arg._func == FORMAT)
     {
         // Format the graph and the community
-        GraphBase::FormatGraph(infilename, Arg._probDist, Arg._wcVar, Arg._probEdge, Arg._skewType, commFilenames);
+        GraphBase::FormatGraph(infilename, Arg._probDist, Arg._wcVar, Arg._probEdge, Arg._skewType, commFilenames, commFormat);
         return 0;
     }
 
@@ -69,7 +70,7 @@ int main(int argc, char* argv[])
     if (Arg._func == FIM || Arg._func == RFIM)
     {
         std::cout << "Loading community: " << commFilenames << std::endl;
-        GraphBase::LoadComm(vecComm, commVec, commFair, infilename);
+        GraphBase::LoadComm(vecComm, commVec, commFair, commFormat);
         pAlg = std::make_unique<TAlg>(graph, vecComm, commVec, commFair, tRes, graphOri);
     }
     else // Arg._func == IM
@@ -88,7 +89,10 @@ int main(int argc, char* argv[])
 
     int seedSize = Arg._seedsize;
     std::cout << "seedSize k=" << seedSize << std::endl;
-    Arg.build_outfilename(seedSize, (ProbDist)probDist, graph);
+    if (Arg._commFile == "")
+        Arg.build_outfilename(seedSize, (ProbDist)probDist, graph);
+    else
+        Arg.build_outfilename(seedSize, (ProbDist)probDist, graph, (int)commFair.size());
     std::cout << "---The Begin of " << Arg._outFileName << "---\n";
 
     switch (Arg._func)
@@ -111,8 +115,11 @@ int main(int argc, char* argv[])
             case ALL_GREEDY:
                 pAlg->allGreedyWithHIST(seedSize, Arg._eps, delta, Arg._gamma, Arg._saturateRatio);
                 break;
-            case SATURATE_GREEDY_CELF:
-                pAlg->saturateGreedyWithCELF(seedSize, Arg._eps, delta, Arg._gamma, Arg._saturateRatio);
+            case WEIGHTED_AVERAGE_GREEDY1:
+                pAlg->wAvgGreedyWithHIST(seedSize, Arg._eps, delta, Arg._gamma, Arg._saturateRatio, WEIGHTED_AVERAGE_GREEDY1);
+                break;
+            case WEIGHTED_AVERAGE_GREEDY2:
+                pAlg->wAvgGreedyWithHIST(seedSize, Arg._eps, delta, Arg._gamma, Arg._saturateRatio, WEIGHTED_AVERAGE_GREEDY2);
                 break;
             default:
                 std::cerr<< "Error: Unknown method type" << std::endl;

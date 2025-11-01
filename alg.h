@@ -20,7 +20,7 @@ private:
     /// The minimum upper bound among all rounds for __model=2.
     double _boundMin = DBL_MAX;
 
-    // number of MC simulations
+    // number of MC simulations for verification
     int _numMC = 10000;
 
     // original seed budget k
@@ -77,6 +77,9 @@ private:
 
     /// The general coverage of the G-RR sets for different size of seeds
     std::vector<double> _vecSelfVldtGFCoverage;
+
+    /// Weights for each metric in weighted average greedy
+    std::vector<double> _vecWeights;
 
     /// Maximum coverage by lazy updating.
     double MaxCoverVanilla(const int targetSize);
@@ -150,10 +153,11 @@ public:
         _vecFairInfVldt.resize(_numMetric);
         _vecFairInfDiffSize.resize(_numMetric);
         _vecBoundMinFairInf.resize(_numMetric);
+        _vecWeights.resize(_numMetric, 1.0);
 
-        _hyperGraph.setPtr(&_c, &_fairInf, &_vecOptFairInf, &_vecFairInf, &_vecFairInfVldt, &_vecFairInfDiffSize);
-        _hyperGraphVldt.setPtr(&_c, &_fairInf, &_vecOptFairInf, &_vecFairInf, &_vecFairInfVldt, &_vecFairInfDiffSize);
-        _hyperGraphOri.setPtr(&_c, &_fairInf, &_vecOptFairInf, &_vecFairInf, &_vecFairInfVldt, &_vecFairInfDiffSize);
+        _hyperGraph.setPtr(&_c, &_fairInf, &_vecOptFairInf, &_vecFairInf, &_vecFairInfVldt, &_vecFairInfDiffSize, &_vecWeights);
+        _hyperGraphVldt.setPtr(&_c, &_fairInf, &_vecOptFairInf, &_vecFairInf, &_vecFairInfVldt, &_vecFairInfDiffSize, &_vecWeights);
+        _hyperGraphOri.setPtr(&_c, &_fairInf, &_vecOptFairInf, &_vecFairInf, &_vecFairInfVldt, &_vecFairInfDiffSize, &_vecWeights);
 
         _alphaMin = _hyperGraph.get_alpha_min();
     }
@@ -200,14 +204,15 @@ public:
 
     double subsimWithHIST(const int targetSize, const double epsilon, const double delta);
 
+
+    /// New members for RFIM
+
     // return the upper bound of H
     double calculateUpperBound(const double a1);
     // return the lower bound of H
     double calculateLowerBound(const double a2);
     // return the estimated lower bound (by R1) of H
     double calculateLowerBoundR1(const double a2, const int k);
-
-    // member functions for RFIM
 
     // Sentinal set selection phase for G-HIST
     double FindGeneralDynamSub(const int totalTargetSize, const double epsilon, const double delta);
@@ -221,11 +226,8 @@ public:
     double singleGreedyWithHIST(const int targetSize = 100, const double epsilon = 0.1, const double delta = 0.05, const double gamma = 0.1, const double saturateRatio = -1.0);
     // baseline: all greedy
     double allGreedyWithHIST(const int targetSize = 100, const double epsilon = 0.1, const double delta = 0.05, const double gamma = 0.1, const double saturateRatio = -1.0);
-
-    // baseline: saturate greedy with CELF, this baseline is not included in our work, since they are very inefficient
-    double generalCELF(const int targetSize, const double epsilon, const double delta);
-    double generalCELFMintss(const double targetThreshold, const double epsilon, const double delta);
-    double saturateGreedyWithCELF(const int targetSize = 100, const double epsilon = 0.1, const double delta = 0.05, const double gamma = 0.1, const double saturateRatio = -1.0);
+    // baseline: weighted average greedy
+    double wAvgGreedyWithHIST(const int targetSize = 100, const double epsilon = 0.1, const double delta = 0.05, const double gamma = 0.1, const double saturateRatio = -1.0, const MethodType weightMode = WEIGHTED_AVERAGE_GREEDY1);
 };
 
 using TAlg = Alg;

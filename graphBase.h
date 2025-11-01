@@ -15,7 +15,8 @@ public:
     /// Add commFilenames.
     static void FormatGraph(const std::string filename, ProbDist probDist,
         const float sum, const float prob, const std::string skewType,
-        const std::string commFilenames = "")
+        const std::string commFilenames = "",
+        const std::string commFormat = "")
     {
         size_t numV, numE;
         uint32_t srcId, dstId;
@@ -227,7 +228,7 @@ public:
                 }
             }
             infile.close();
-            TIO::SaveCommStruct(filename, vecComms, vecCommLists, commFairList);
+            TIO::SaveCommStruct(commFormat, vecComms, vecCommLists, commFairList);
             std::cout << "The community is formatted!" << std::endl;
         }
         std::cout << "The graph is formatted!" << std::endl;

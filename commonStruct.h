@@ -22,9 +22,9 @@ enum FuncType {FORMAT, IM, FIM, RFIM, FUNC_ERROR};
 /// Different fairness calculation methods
 enum FairType {LINEAR, SCALE_POWER, FAIR_ERROR};
 /// Different baseline methods
-enum MethodType {SATURATE_GREEDY_HIST, SINGLE_GREEDY, ALL_GREEDY, SATURATE_GREEDY_CELF, METHOD_ERROR};
+enum MethodType {SATURATE_GREEDY_HIST, SINGLE_GREEDY, ALL_GREEDY, WEIGHTED_AVERAGE_GREEDY1, WEIGHTED_AVERAGE_GREEDY2, METHOD_ERROR};
 
-enum EdgeStatus { UNCHECK, PASS, FAIL };
+enum EdgeStatus {UNCHECK, PASS, FAIL};
 typedef std::vector<EdgeStatus> EdgeStatusList;
 typedef std::vector<EdgeStatusList> GraphEdgeStatus;
 

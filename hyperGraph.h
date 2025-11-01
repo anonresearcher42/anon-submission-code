@@ -31,6 +31,10 @@ private:
 
     /// if the MaxCover uses Saturate Greedy, only works for _funcType=RFIM 
     bool _isSaturateGreedy = true;
+    /// if the MaxCover uses Weighted Average Greedy ,only works for _funcType=RFIM and _isSaturateGreedy=false
+    bool _isWeightedAvgGreedy = false;
+    /// the vector of weights for Weighted Average Greedy, only works for _funcType=RFIM and _isSaturateGreedy=false
+    std::vector<double>* _pvecWeights = nullptr;
 
     /// The greedy (instead of optimal) fair influence \sigma(S^{g}_{q}) for each metric for each size of seed |S|.
     /// (*_pvecOptFairInf)[q][k]: (for FIM) the greedy fair influence for metric q and seed size k,
@@ -263,7 +267,8 @@ public:
     }
 
     void setPtr(const double* c, const double * currFairInf, std::vector<double>* vecOptFairInf,
-        std::vector<double>* vecFairInf, std::vector<double>* vecFairInfVldt, std::vector<std::vector<double>>* vecFairInfDiffSize)
+        std::vector<double>* vecFairInf, std::vector<double>* vecFairInfVldt, 
+        std::vector<std::vector<double>>* vecFairInfDiffSize, std::vector<double>* vecWeights)
     {
         set_c_for_RFIM(c);
         set_currFairInf_ptr(currFairInf);
@@ -271,6 +276,7 @@ public:
         _pvecFairInf = vecFairInf;
         _pvecFairInfVldt = vecFairInfVldt;
         _pvecFairInfDiffSize = vecFairInfDiffSize;
+        _pvecWeights = vecWeights;
     }
 
     void set_isSaturateGreedy(const bool isSaturateGreedy)
@@ -281,6 +287,16 @@ public:
     bool get_isSaturateGreedy()
     {
         return _isSaturateGreedy;
+    }
+
+    void set_isWeightedAvgGreedy(const bool isWeightedAvgGreedy)
+    { // only works for RFIM and _isSaturateGreedy=false
+        _isWeightedAvgGreedy = isWeightedAvgGreedy;
+    }
+
+    bool get_isWeightedAvgGreedy()
+    {
+        return _isWeightedAvgGreedy;
     }
 
     /// Initialize the G-coverage status
@@ -858,7 +874,7 @@ public:
             case RFIM:
             {
                 double currFInf;
-                fInf = _isSaturateGreedy ? 0.0 : (double)_numV;
+                fInf = _isSaturateGreedy ? 0.0 : _isWeightedAvgGreedy ? 0.0 : (double)_numV;
                 for (int q = 0; q < _numMetric; q++)
                 {
                     currFInf = 0.0;
@@ -888,7 +904,10 @@ public:
                     }
                     else // simple greedy (baseline)
                     {
-                        if (currFInf / (*_pVecOptFairInf)[q] < fInf) fInf = currFInf / (*_pVecOptFairInf)[q];
+                        if (_isWeightedAvgGreedy) // weighted average greedy
+                            fInf += (*_pvecWeights)[q] * currFInf;
+                        else // simple greedy
+                            if (currFInf / (*_pVecOptFairInf)[q] < fInf) fInf = currFInf / (*_pVecOptFairInf)[q];
                     }
                 }
                 break;
@@ -938,7 +957,7 @@ public:
             case RFIM:
             {
                 double currFInf;
-                fInf = _isSaturateGreedy ? 0.0 : (double)_numV;
+                fInf = _isSaturateGreedy ? 0.0 : _isWeightedAvgGreedy ? 0.0 : (double)_numV;
                 for (int q = 0; q < _numMetric; q++)
                 {
                     currFInf = 0.0;
@@ -964,7 +983,10 @@ public:
                     }
                     else // simple greedy (baseline)
                     {
-                        if (currFInf / (*_pVecOptFairInf)[q] < fInf) fInf = currFInf / (*_pVecOptFairInf)[q];
+                        if (_isWeightedAvgGreedy) // weighted average greedy
+                            fInf += (*_pvecWeights)[q] * currFInf;
+                        else // simple greedy
+                            if (currFInf / (*_pVecOptFairInf)[q] < fInf) fInf = currFInf / (*_pVecOptFairInf)[q];
                     }
                 }
                 break;
@@ -1013,7 +1035,7 @@ public:
             {
                 double currMarginalFInf; // The marginal fair influence after adding node v in metric q
                 double currFInf; // The fair influence before adding node v in mertic q
-                fInf = _isSaturateGreedy ? 0.0 : (double)_numV;
+                fInf = _isSaturateGreedy ? 0.0 : _isWeightedAvgGreedy ? 0.0 : (double)_numV;
                 for (auto q = 0; q < _numMetric; ++q)
                 {
                     currMarginalFInf = 0.0; currFInf = 0.0;
@@ -1041,9 +1063,12 @@ public:
                         fInf += std::min((*_p_c), (currMarginalFInf + currFInf) / (*_pVecOptFairInf)[q])
                             - std::min((*_p_c), currFInf / (*_pVecOptFairInf)[q]);
                     }
-                    else // single greedy (baseline)
+                    else // single greedy or weighted average greedy (baselines)
                     {
-                        if (currMarginalFInf / (*_pVecOptFairInf)[q] < fInf) fInf = currMarginalFInf / (*_pVecOptFairInf)[q];
+                        if (_isWeightedAvgGreedy) // weighted average greedy
+                            fInf += currMarginalFInf * (*_pvecWeights)[q];
+                        else //single greedy
+                            if (currMarginalFInf / (*_pVecOptFairInf)[q] < fInf) fInf = currMarginalFInf / (*_pVecOptFairInf)[q];
                     }
                 }
                 break;
@@ -1921,7 +1946,7 @@ finished:
 
             case RFIM:
             {
-                double fInf = _isSaturateGreedy ? 0.0 : (double)_numV;
+                double fInf = _isSaturateGreedy ? 0.0 : _isWeightedAvgGreedy ? 0.0 : (double)_numV;
                 for (int q = 0; q < _numMetric; ++q)
                 {
                     double currMarginalFInf = 0.0;
@@ -1949,8 +1974,17 @@ finished:
                     }
                     else
                     {
-                        if (currMarginalFInf / (*_pVecOptFairInf)[q] < fInf) fInf = currMarginalFInf / (*_pVecOptFairInf)[q];
-                        (*_pvecFairInfVldt)[q] = currMarginalFInf;
+                        if (_isWeightedAvgGreedy) // Weighted Average Greedy
+                        {
+                            fInf += currMarginalFInf * (*_pvecWeights)[q];
+                        }
+                        else // SingleGreedy
+                        {
+                            if (currMarginalFInf / (*_pVecOptFairInf)[q] < fInf)
+                                fInf = currMarginalFInf / (*_pVecOptFairInf)[q];
+                            (*_pvecFairInfVldt)[q] = currMarginalFInf;
+                        }
+                        
                     }
                 }
                 return fInf;
@@ -2155,7 +2189,7 @@ finished:
 
                 case RFIM:
                 {
-                    double fInf = _isSaturateGreedy ? 0.0 : (double)_numV;
+                    double fInf = _isSaturateGreedy ? 0.0 : _isWeightedAvgGreedy ? 0.0 : (double)_numV;
                     for (int q = 0; q < _numMetric; ++q)
                     {
                         double currMarginalFInf = 0.0;
@@ -2176,13 +2210,20 @@ finished:
                                     exit(1);
                             }
                         }
-                        if (_isSaturateGreedy)
+                        if (_isSaturateGreedy) // SaturateGreedy
                         {
                             fInf += std::min((*_p_c), currMarginalFInf / (*_pVecOptFairInf)[q]);
                         }
                         else
                         {
-                            if (currMarginalFInf / (*_pVecOptFairInf)[q] < fInf) fInf = currMarginalFInf / (*_pVecOptFairInf)[q];
+                            if (_isWeightedAvgGreedy) // Weighted Average Greedy
+                            {
+                                fInf += currMarginalFInf * (*_pvecWeights)[q];
+                            }
+                            else // SingleGreedy
+                            {
+                                if (currMarginalFInf / (*_pVecOptFairInf)[q] < fInf) fInf = currMarginalFInf / (*_pVecOptFairInf)[q];
+                            }
                         }
                     }
                     gFairInf = fInf;
@@ -2352,7 +2393,7 @@ finished:
 
         // use _gHit to calculate the G-Influence
         double totalGfairInf = (_funcType == FIM || _funcType == RFIM) ? 
-            (_funcType == FIM ? 0.0 : (_isSaturateGreedy ? 0.0 : (double)_numV)) : 0.0;
+            (_funcType == FIM ? 0.0 : (_isSaturateGreedy ? 0.0 : _isWeightedAvgGreedy ? 0.0 : (double)_numV)) : 0.0;
 
         for (int q = 0; q < _numMetric; ++q)
         {
@@ -2392,7 +2433,10 @@ finished:
                 }
                 else
                 {
-                    totalGfairInf = std::min(totalGfairInf, fairInfQ / (*_pVecOptFairInf)[q]);
+                    if (_isWeightedAvgGreedy) // Weighted Average Greedy
+                        totalGfairInf += fairInfQ * (*_pvecWeights)[q];
+                    else // SingleGreedy
+                        totalGfairInf = std::min(totalGfairInf, fairInfQ / (*_pVecOptFairInf)[q]);
                 }
             }
             else

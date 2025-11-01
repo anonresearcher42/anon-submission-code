@@ -31,22 +31,24 @@ Execute the sg-hist method with the specified parameters:
 
     ./rfim -func=rfim -graphname=facebook -pdist=wc -seedsize=100 -eps=0.1 -delta=0.05 -method=sgh
 
-## Important Parameter
+## Important Parameters
 
 Option       | Type    | Description
 ------------ | ------- | --------------------------------------------
 func         | string  | Task to perform: `format` or `rfim`
 graphname    | string  | Name of the input graph
-pdist        | string  | Propagation model; we use `wc`
-seedsize     | int     | Number of seeds to select
+pdist        | string  | Propagation model; we use `wc` in the paper
+seedsize     | int     | Number of seeds to select, `k` in the paper
 eps          | double  | Error bound for approximation
 delta        | double  | failure probability
-method       | string  | Method to use: `sgh`, `sg`, or `ag`
+method       | string  | Method to use: `sgh`, `sg`, `ag`, `wag1`, or `wag2`
 
 **Method options:**
 - `sgh`: SG-HIST (proposed method)
 - `sg`: SingleGreedy (baseline method)
 - `ag`: AllGreedy (baseline method)
+- `wag1`: WAGreedy1 (baseline method)
+- `wag2`: WAGreedy2 (baseline method)
 
 ## Related Projects
 

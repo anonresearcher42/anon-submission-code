@@ -1695,7 +1695,7 @@ double Alg::subsimWithHIST(const int targetSize, const double epsilon, const dou
 double Alg::calculateUpperBound(const double a1)
 {
     size_t numR = _hyperGraph.get_RR_sets_size();
-    double upperH = _hyperGraphVldt.get_isSaturateGreedy() ? 0.0 : DBL_MAX;
+    double upperH = _hyperGraphVldt.get_isSaturateGreedy() ? 0.0 : _hyperGraphVldt.get_isWeightedAvgGreedy() ? 0.0 : DBL_MAX;
     if (_hyperGraph.get_func_type() == RFIM)
     {
         for (auto q = 0; q < _numMetric; q++)
@@ -1703,13 +1703,16 @@ double Alg::calculateUpperBound(const double a1)
             double fairInf = _vecBoundMinFairInf[q];
             double upperDeg = fairInf * numR;
             double upper = (1.0 / numR) * pow2(sqrt(upperDeg + a1 / 2.0) + sqrt(a1 / 2.0));
-            if (_hyperGraphVldt.get_isSaturateGreedy())
+            if (_hyperGraphVldt.get_isSaturateGreedy()) //S-HIST
             {
                 upperH += std::min(upper / _vecOptFairInf[q], _c);
             }
             else
             {
-                upperH = std::min(upperH, upper / _vecOptFairInf[q]);
+                if (_hyperGraphVldt.get_isWeightedAvgGreedy()) // WeightedAvgGreedy
+                    upperH += upper * _vecWeights[q];
+                else // SingleGreedy
+                    upperH = std::min(upperH, upper / _vecOptFairInf[q]);
             }
         }
     }
@@ -1723,7 +1726,7 @@ double Alg::calculateUpperBound(const double a1)
 double Alg::calculateLowerBoundR1(const double a2, const int k)
 {
     size_t numR = _hyperGraph.get_RR_sets_size();
-    double lowerH = _hyperGraph.get_isSaturateGreedy() ? 0.0 : DBL_MAX;
+    double lowerH = _hyperGraph.get_isSaturateGreedy() ? 0.0 : _hyperGraph.get_isWeightedAvgGreedy() ? 0.0 : DBL_MAX;
     if (_hyperGraph.get_func_type() == RFIM)
     {
         for (auto q = 0; q < _numMetric; q++)
@@ -1731,13 +1734,16 @@ double Alg::calculateLowerBoundR1(const double a2, const int k)
             double fairInf = _vecFairInfDiffSize[q][k];
             double lowerDeg = fairInf * numR;
             double lower = (1.0 / numR) * (pow2(sqrt(lowerDeg + a2 * 2.0 / 9.0) - sqrt(a2 / 2.0)) - a2 / 18.0);
-            if (_hyperGraph.get_isSaturateGreedy())
+            if (_hyperGraph.get_isSaturateGreedy()) //S-HIST
             {
                 lowerH += std::min(lower / _vecOptFairInf[q], _c);
             }
             else
             {
-                lowerH = std::min(lowerH, lower / _vecOptFairInf[q]);
+                if (_hyperGraph.get_isWeightedAvgGreedy()) // WeightedAvgGreedy
+                    lowerH += lower * _vecWeights[q];
+                else // SingleGreedy
+                    lowerH = std::min(lowerH, lower / _vecOptFairInf[q]);
             }
         }
     }
@@ -1752,7 +1758,8 @@ double Alg::calculateLowerBoundR1(const double a2, const int k)
 double Alg::calculateLowerBound(const double a2)
 {
     size_t numR = _hyperGraphVldt.get_RR_sets_size();
-    double lowerH = _hyperGraphVldt.get_isSaturateGreedy() ? 0.0 : DBL_MAX;
+    double lowerH = _hyperGraphVldt.get_isSaturateGreedy() ? 0.0 : _hyperGraphVldt.get_isWeightedAvgGreedy() ? 0.0 : DBL_MAX;
+
     if (_hyperGraphVldt.get_func_type() == RFIM)
     {
         for (auto q = 0; q < _numMetric; q++)
@@ -1760,13 +1767,16 @@ double Alg::calculateLowerBound(const double a2)
             double fairInf = _vecFairInfVldt[q];
             double lowerDeg = fairInf * numR;
             double lower = (1.0 / numR) * (pow2(sqrt(lowerDeg + a2 * 2.0 / 9.0) - sqrt(a2 / 2.0)) - a2 / 18.0);
-            if (_hyperGraphVldt.get_isSaturateGreedy())
+            if (_hyperGraphVldt.get_isSaturateGreedy()) //S-HIST
             {
                 lowerH += std::min(lower / _vecOptFairInf[q], _c);
             }
             else
             {
-                lowerH = std::min(lowerH, lower / _vecOptFairInf[q]);
+                if (_hyperGraphVldt.get_isWeightedAvgGreedy()) // WeightedAvgGreedy
+                    lowerH += lower * _vecWeights[q];
+                else // SingleGreedy
+                    lowerH = std::min(lowerH, lower / _vecOptFairInf[q]);
             }
         }
     }
@@ -1928,11 +1938,10 @@ double Alg::FindGeneralRemSet(const int targetSize, const double epsilon, const 
     }
     else
     {
-        if (_hyperGraph.get_func_type() == RFIM) approx = 1 - exp(-beta); // Single Greedy
-        else approx = 1 - 1 / e; // All Greedy (FIM)
-        delta_upper = delta / 3.0;
+        approx = 1 - 1 / e; // FIM && other Baselines
         alpha = sqrt(log(3.0 / delta_upper));
         beta = sqrt((1 - 1 / e) * (logcnk(_numV - subSeedSetSize, targetSize - subSeedSetSize) + log(3.0 / delta_upper)));
+        delta_upper = delta / 3.0;
         numRbase = size_t(_baseNumRRsets);
         maxNumR = size_t(2.0 * _numV * pow2(alpha + beta) / targetSize / pow2(epsilon)) + 1;
         numIter = (size_t)log2(maxNumR / numRbase) + 1;
@@ -1981,7 +1990,8 @@ double Alg::FindGeneralRemSet(const int targetSize, const double epsilon, const 
             return lowerSelect;
         }
 
-        if (currApprox >= approx - targetEpsilon || (currApprox >= 0.99 && idx >= 8)) //EarlyStop
+        //EarlyStop, if currApprox is sufficiently large or we are using the weighted average baselines which do not have theoretical approxmation guarantees
+        if (currApprox >= approx - targetEpsilon || ((currApprox >= 0.99 || _hyperGraph.get_isWeightedAvgGreedy()) && idx >= 8))
         {
             _res.set_approximation(currApprox);
             _res.set_influence(infVldt);
@@ -2007,7 +2017,13 @@ double Alg::FindGeneralRemSet(const int targetSize, const double epsilon, const 
             _res.set_seed_vec(_vecSeed);
             _res.set_RR_sets_size(_res.get_RRsets_size() + _hyperGraph.get_RR_sets_size() + _hyperGraphVldt.get_RR_sets_size());
             if (_hyperGraph.get_func_type() == FIM) std::cout << "==>Generalized Fair Influence via R2 in Remaining Selection phase: " << infVldt << std::endl;
-            else std::cout << "==>Robustness Score via R2 in Remaining Selection phase: " << infVldt << std::endl;
+            else
+            {
+                if (_hyperGraph.get_isWeightedAvgGreedy()) // WeightedAvgGreedy
+                    std::cout << "==>Weighted Average Fair Influence via R2 in Remaining Selection phase: " << infVldt << std::endl;
+                else // S-HIST, SingleGreedy, AllGreedy
+                    std::cout << "==>Robustness Score via R2 in Remaining Selection phase: " << infVldt << std::endl;
+            }
             if (_hyperGraph.get_func_type() == FIM) return infVldt;
             else return lowerSelect;
         }
@@ -2020,11 +2036,13 @@ double Alg::SaturateGeneralizedHIST(const int targetSize, const double epsilon, 
 {
     double res = 0.0;
     _baseNumRRsets = 3.0 * log(2.0 / delta);
+    // if (_hyperGraph.get_func_type() == RFIM && !_hyperGraph.get_isWeightedAvgGreedy())
     if (_hyperGraph.get_func_type() == RFIM)
     {
         _baseNumRRsets = 3.0 * log(6.0 * _numMetric / delta);
         _baseNumRRsets = _baseNumRRsets < 1024 ? 1024 : _baseNumRRsets;  // To avoid useless iterations with few rrsets.
     }
+    
     double epsilon0 = epsilon / 2;
     double delta0 = delta / 2;
     std::cout << std::endl;
@@ -2076,6 +2094,9 @@ double Alg::saturateGreedyWithHIST(const int targetSize, const double epsilon, c
     _hyperGraph.set_func_type(RFIM);
     _hyperGraphVldt.set_func_type(RFIM);
     _hyperGraphOri.set_func_type(RFIM);
+
+    double c_min_last = 0.0; // for experiment c_max = 2.0
+    bool if_update_c_min = false; // for experiment c_max = 2.0
     while (c_max - c_min >= epsilon)
     {
         _c = (c_min + c_max) / 2;
@@ -2086,12 +2107,16 @@ double Alg::saturateGreedyWithHIST(const int targetSize, const double epsilon, c
         {
             c_max = _c;
             std::cout << "---> c_max <- " << _c << std::endl;
+            if_update_c_min = false; // for experiment c_max = 2.0
         }
         else
         {
             c_min = _c * (1 - epsilon/3);
             _res.log_best_res();
             std::cout << "---> c_min <- " << _c * (1 - epsilon/3) << std::endl;
+            if (if_update_c_min && c_min_last >= c_min) break; // for experiment c_max = 2.0
+            if_update_c_min = true; // for experiment c_max = 2.0
+            c_min_last = c_min; // for experiment c_max = 2.0
         }
     }
     // use the best _c to generate the final seeds
@@ -2233,166 +2258,74 @@ double Alg::allGreedyWithHIST(const int targetSize, const double epsilon, const 
     return largestGFInf;
 }
 
-double Alg::generalCELF(const int targetSize, const double epsilon, const double delta)
+double Alg::wAvgGreedyWithHIST(const int targetSize, const double epsilon, const double delta, const double gamma, const double saturateRatio, const MethodType weightMode)
 {
-    std::cout << "Running CELF with Monte Carlo Simulations..." << std::endl;
-
-    const int numMC = _numMC; // number of MC simulations
-    std::unordered_set<uint32_t> seedSet;
-    std::vector<double> marginalGain(_numV, 0.0);
-
-    // Priority queue CELF elements: node number, gain value, label (the version last added to the seed set)
-    using CELFItem = std::tuple<uint32_t, double, int>;
-    auto cmp = [](const CELFItem& a, const CELFItem& b) { return std::get<1>(a) < std::get<1>(b); };
-    std::priority_queue<CELFItem, std::vector<CELFItem>, decltype(cmp)> celfQueue(cmp);
-
-    // Calculate the influence of all nodes as seeds individually
-    for (uint32_t u = 0; u < _numV; ++u)
-    {
-        std::unordered_set<uint32_t> singleSeed = {u};
-        double influence = _hyperGraphOri.MonteCarloSimulate(singleSeed, numMC);
-        marginalGain[u] = influence;
-        celfQueue.emplace(u, influence, 0); // the first round
-    }
-
-    double baseInfluence = 0.0, newInfluence = 0.0, marginal = 0.0;
-
-    int round = 1;
-    while ((int)seedSet.size() < targetSize && !celfQueue.empty())
-    {
-        auto [node, gain, prevRound] = celfQueue.top();
-        celfQueue.pop();
-
-        if (prevRound == round - 1)
-        {
-            seedSet.insert(node);
-            std::cout << "Selected seed " << node << " with marginal gain " << gain << std::endl;
-            ++round;
-            baseInfluence += gain;
-        }
-        else
-        {
-            // recompute the marginal influence
-            std::unordered_set<uint32_t> tempSet = seedSet;
-            tempSet.insert(node);
-            newInfluence = _hyperGraphOri.MonteCarloSimulate(tempSet, numMC);
-            marginal = newInfluence - baseInfluence;
-            celfQueue.emplace(node, marginal, round - 1);
-        }
-    }
-
-    _vecSeed.assign(seedSet.begin(), seedSet.end());
-    double finalInfluence = baseInfluence;
-    std::cout << "Final Influence: " << finalInfluence << std::endl;
-    _res.set_robustness_score(finalInfluence);
-    _res.set_seed_vec(_vecSeed);
-    return finalInfluence;
-}
-
-double Alg::generalCELFMintss(const double targetThreshold, const double epsilon, const double delta)
-{
-    std::cout << "Running CELF with Monte Carlo Simulations..." << std::endl;
-
-    const int numMC = _numMC; // number of MC simulations
-    std::unordered_set<uint32_t> seedSet;
-    std::vector<double> marginalGain(_numV, 0.0);
-
-    // Priority queue CELF elements: node number, gain value, label (the version last added to the seed set)
-    using CELFItem = std::tuple<uint32_t, double, int>;
-    auto cmp = [](const CELFItem& a, const CELFItem& b) { return std::get<1>(a) < std::get<1>(b); };
-    std::priority_queue<CELFItem, std::vector<CELFItem>, decltype(cmp)> celfQueue(cmp);
-
-    // Calculate the influence of all nodes as seeds individually
-    for (uint32_t u = 0; u < _numV; ++u)
-    {
-        std::unordered_set<uint32_t> singleSeed = {u};
-        double influence = _hyperGraphOri.MonteCarloSimulate(singleSeed, numMC);
-        marginalGain[u] = influence;
-        celfQueue.emplace(u, influence, 0); // the first round
-    }
-
-    double baseInfluence = 0.0, newInfluence = 0.0, marginal = 0.0;
-
-    int round = 1;
-    while (baseInfluence < targetThreshold && !celfQueue.empty())
-    {
-        auto [node, gain, prevRound] = celfQueue.top();
-        celfQueue.pop();
-
-        if (prevRound == round - 1)
-        {
-            seedSet.insert(node);
-            std::cout << "Selected seed " << node << " with marginal gain " << gain << std::endl;
-            ++round;
-            baseInfluence += gain;
-        }
-        else
-        {
-            // recompute the marginal influence
-            std::unordered_set<uint32_t> tempSet = seedSet;
-            tempSet.insert(node);
-            newInfluence = _hyperGraphOri.MonteCarloSimulate(tempSet, numMC);
-            marginal = newInfluence - baseInfluence;
-            celfQueue.emplace(node, marginal, round - 1);
-        }
-    }
-
-    _vecSeed.assign(seedSet.begin(), seedSet.end());
-    double finalInfluence = baseInfluence;
-    std::cout << "Final Influence: " << finalInfluence << std::endl;
-    _res.set_fair_inf(finalInfluence);
-    _res.set_seed_vec(_vecSeed);
-    return _vecSeed.size();
-}
-
-double Alg::saturateGreedyWithCELF(const int targetSize, const double epsilon, const double delta, const double gamma, const double saturateRatio)
-{
-    Timer timerSGwC("saturateGreedyWithCELF");
-    double c_min = 0.0; double c_max = 1.0; double accumulatedDelta = 0.0;
-    int remainingIterCap = 0;
-    const double beta = (saturateRatio >= 1.0) ? saturateRatio : 1 + log(_numMetric) + log(3 / gamma);
+    Timer timerWAG("wAvgGreedyWithHIST");
+    const double e = exp(1);
+    const double beta = (saturateRatio >= 1.0) ? saturateRatio : 1 + log(_numMetric) + log(6 / (e * epsilon));
     const double deltaHalf = 0.5 * delta; // if we treat the OPT of FIM of each metric is not given
-    // const double deltaHalf = delta; // if we treat the OPT of FIM of each metric is given
+    _k = targetSize;
+    _beta = (saturateRatio >= 1.0) ? beta : beta;
 
-    const int numMC = _numMC; // number of MC simulations
-
+    std::cout << "==> Precalculating the fair influence for each metric..." << std::endl;
     for(auto q = 0; q < _numMetric; q++)
     {
-        if (_vecOptFairInf[q] <= 0)
-        {
-            double fairInf = 0.0;
-            _hyperGraph.set_func_type(FIM, q);
-            _hyperGraphVldt.set_func_type(FIM, q);
-            fairInf = SaturateGeneralizedHIST(targetSize, epsilon, deltaHalf / _numMetric);
-            _vecOptFairInf[q] = fairInf / (1 - 1 / exp(1));
-        }
+        double fairInf = 0.0;
+        _hyperGraph.set_func_type(FIM, q);
+        _hyperGraphVldt.set_func_type(FIM, q);
+        _hyperGraphOri.set_func_type(FIM, q);
+        fairInf = SaturateGeneralizedHIST(targetSize, epsilon, deltaHalf / _numMetric);
+        _vecOptFairInf[q] = fairInf / (1.0 - 1.0 / e);
+        std::cout << "---> The fair obj of metric " << q << " by G-HIST: " << fairInf << std::endl;
+        // use MC simulations to estimate the greedy fair influence
+        // std::unordered_set<uint32_t> seedSet(_vecSeed.begin(), _vecSeed.end());
+        // double fairInfMC = _hyperGraphOri.MonteCarloSimulate(seedSet, _numMC);
+        // std::cout << "---> The fair obj of metric " << q << " evaluated by MC simulation: " << fairInfMC << std::endl;
+        // fairInfMC /= (1 - 1 / exp(1));
+        // _vecOptFairInf[q] = fairInfMC;
     }
-    timerSGwC.refresh_time();
+    std::cout << "\n\n==> Precalculating the fair influence for each metric done!" << std::endl;
+    if (weightMode == WEIGHTED_AVERAGE_GREEDY1)
+    {
+        std::cout << "==> Equal Weighted Average Greedy: Start!" << std::endl;
+    }
+    else if (weightMode == WEIGHTED_AVERAGE_GREEDY2)
+    {
+        std::cout << "==> Weighted Average Greedy with pre-calculated weights: Start!" << std::endl;
+    }
+    timerWAG.refresh_time();
     _hyperGraph.set_func_type(RFIM);
     _hyperGraphVldt.set_func_type(RFIM);
-    _hyperGraphOri.set_func_type(RFIM);
-    while (c_max - c_min >= gamma)
+    _hyperGraph.set_isSaturateGreedy(false);
+    _hyperGraphVldt.set_isSaturateGreedy(false);
+    _hyperGraph.set_isWeightedAvgGreedy(true);
+    _hyperGraphVldt.set_isWeightedAvgGreedy(true);
+
+    double sumOptFairInf = 0.0;
+    if (weightMode == WEIGHTED_AVERAGE_GREEDY1)
     {
-        _c = (c_min + c_max) / 2;
-        remainingIterCap = estRemIterCap(gamma, c_min, c_max) + 1;
-        int seedSetSize = generalCELFMintss(_c * (_numMetric - gamma / 3), epsilon, (deltaHalf - accumulatedDelta) / remainingIterCap);
-        accumulatedDelta += (deltaHalf - accumulatedDelta) / remainingIterCap;
-        if (seedSetSize > beta * targetSize)
-        {
-            c_max = _c;
-        }
-        else
-        {
-            c_min = _c * (1 - gamma/3);
-            _res.log_best_res();
-        }
+        for(auto q = 0; q < _numMetric; q++) sumOptFairInf += _vecOptFairInf[q];
+        for(auto q = 0; q < _numMetric; q++) _vecWeights[q] = 1.0 / sumOptFairInf;
     }
-    _res.log_final_res();
-    _res.set_running_time(timerSGwC.get_total_time());
+    else if (weightMode == WEIGHTED_AVERAGE_GREEDY2)
+    {
+        for(auto q = 0; q < _numMetric; q++) sumOptFairInf += _vecOptFairInf[q];
+        for(auto q = 0; q < _numMetric; q++) _vecWeights[q] = _vecOptFairInf[q] / sumOptFairInf;
+    }
+
+    double fInf = SaturateGeneralizedHIST((int)ceil(beta * targetSize), epsilon, deltaHalf);
+    _res.set_fair_inf(fInf);
+    _res.set_running_time(timerWAG.get_total_time());
+
+    // MC simulation vertification
+    std::cout << "==> Monte Carlo Simulation, Start!" << std::endl;
+    _hyperGraphOri.set_func_type(RFIM);
     _hyperGraphOri.set_isSaturateGreedy(false);
-    _vecSeed = _res.get_seed_vec();
+    _hyperGraphOri.set_isWeightedAvgGreedy(false);
     std::unordered_set<uint32_t> seedSet(_vecSeed.begin(), _vecSeed.end());
-    double fairInfMC = _hyperGraphOri.MonteCarloSimulate(seedSet, numMC);
+    double fairInfMC = _hyperGraphOri.MonteCarloSimulate(seedSet, _numMC);
     _res.set_resMC(fairInfMC);
+
     return _res.get_fair_inf();
 }
+

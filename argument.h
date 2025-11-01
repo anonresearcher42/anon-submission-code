@@ -16,6 +16,7 @@ public:
     // sgh: saturate greedy with hist
     // sg: single greedy with hist
     // ag: all greedy with hist
+    // wag: weighted average greedy with hist
     std::string _methodStr = "sgh";
     MethodType _methodType = METHOD_ERROR;
 
@@ -69,6 +70,9 @@ public:
     // sample RR set with the vanilla method
     bool _vanilla = true;
 
+    // community file
+    std::string _commFile = "";
+
     Argument(int argc, char* argv[])
     {
         std::string param, value;
@@ -97,6 +101,7 @@ public:
             else if (!param.compare("-method")) _methodStr = value;
             else if (!param.compare("-sratio")) _saturateRatio = stod(value);
             else if (!param.compare("-linearfair")) _isLinearFair = (value == "1");
+            else if (!param.compare("-comm")) _commFile = value;
         }
 
         if (_wcVar <= 0)
@@ -114,7 +119,7 @@ public:
         }
     }
 
-    void build_outfilename(int seedSize, ProbDist dist, Graph& graph)
+    void build_outfilename(int seedSize, ProbDist dist, Graph& graph, int commNum = -1)
     {
         std::string distStr; 
 
@@ -155,21 +160,24 @@ public:
             case RFIM:
                 switch (_methodType)
                 {
-                    case SATURATE_GREEDY_HIST:
-                        _outFileName = TIO::BuildOutFileName(_graphname, "SHIST", seedSize, _probDistStr, _probEdge, _saturateRatio, _eps, _delta);
-                        break;
-                    case SINGLE_GREEDY:
-                        _outFileName = TIO::BuildOutFileName(_graphname, "SingleGreedy", seedSize, _probDistStr, _probEdge, _saturateRatio, _eps, _delta);
-                        break;
-                    case ALL_GREEDY:
-                        _outFileName = TIO::BuildOutFileName(_graphname, "AllGreedy", seedSize, _probDistStr, _probEdge, _saturateRatio, _eps, _delta);
-                        break;
-                    case SATURATE_GREEDY_CELF:
-                        _outFileName = TIO::BuildOutFileName(_graphname, "SGwMC", seedSize, _probDistStr, _probEdge, _saturateRatio, _eps, _delta);
-                        break;
-                    default:
-                        std::cerr<< "Error: Unknown method type" << std::endl;
-                        break;
+                case SATURATE_GREEDY_HIST:
+                    _outFileName = TIO::BuildOutFileName(_graphname, "SHIST", seedSize, _probDistStr, _probEdge, _saturateRatio, _eps, _delta, commNum);
+                    break;
+                case SINGLE_GREEDY:
+                    _outFileName = TIO::BuildOutFileName(_graphname, "SingleGreedy", seedSize, _probDistStr, _probEdge, _saturateRatio, _eps, _delta, commNum);
+                    break;
+                case ALL_GREEDY:
+                    _outFileName = TIO::BuildOutFileName(_graphname, "AllGreedy", seedSize, _probDistStr, _probEdge, _saturateRatio, _eps, _delta, commNum);
+                    break;
+                case WEIGHTED_AVERAGE_GREEDY1:
+                    _outFileName = TIO::BuildOutFileName(_graphname, "WAGreedy1", seedSize, _probDistStr, _probEdge, _saturateRatio, _eps, _delta, commNum);
+                    break;
+                case WEIGHTED_AVERAGE_GREEDY2:
+                    _outFileName = TIO::BuildOutFileName(_graphname, "WAGreedy2", seedSize, _probDistStr, _probEdge, _saturateRatio, _eps, _delta, commNum);
+                    break;
+                default:
+                    std::cerr<< "Error: Unknown method type" << std::endl;
+                    break;
                 }
                 break;
             default:
@@ -244,9 +252,13 @@ public:
         {
             _methodType = ALL_GREEDY;
         }
-        else if (_methodStr == "sgc") // Currently, this code not support this baseline
+        else if (_methodStr == "wag1")
         {
-            _methodType = SATURATE_GREEDY_CELF;
+            _methodType = WEIGHTED_AVERAGE_GREEDY1;
+        }
+        else if (_methodStr == "wag2")
+        {
+            _methodType = WEIGHTED_AVERAGE_GREEDY2;
         }
         else
         {
